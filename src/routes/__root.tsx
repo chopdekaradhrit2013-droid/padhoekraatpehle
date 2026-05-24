@@ -1,4 +1,4 @@
-import AiSidebar from './AiSidebar';
+import AiSidebar from '@/AiSidebar';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -83,7 +83,7 @@ function RootComponent() {
     <ThemeProvider>
       <AuthProvider>
         
-        {/* --- THIS IS OUR NEW SPLIT SCREEN CONTAINER --- */}
+        {/* --- SPLIT SCREEN CONTAINER --- */}
         <div className="app-container">
           
           {/* LEFT SIDE: Holds your page content and footer */}
@@ -94,7 +94,7 @@ function RootComponent() {
             <Footer />
           </div>
 
-          {/* RIGHT SIDE: Your brand new AI Sidebar stays pinned here */}
+          {/* RIGHT SIDE: Your AI Sidebar stays pinned here */}
           <AiSidebar />
 
         </div>
