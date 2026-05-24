@@ -1,4 +1,3 @@
-import AiSidebar from '@/AiSidebar';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -82,24 +81,12 @@ function RootComponent() {
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
       <AuthProvider>
-        
-        {/* --- SPLIT SCREEN CONTAINER --- */}
-        <div className="app-container">
-          
-          {/* LEFT SIDE: Holds your page content and footer */}
-          <div className="document-section flex flex-col min-h-screen">
-            <div className="flex-1">
-              <Outlet />
-            </div>
-            <Footer />
+        <div className="flex min-h-screen flex-col">
+          <div className="flex-1">
+            <Outlet />
           </div>
-
-          {/* RIGHT SIDE: Your AI Sidebar stays pinned here */}
-          <AiSidebar />
-
+          <Footer />
         </div>
-        {/* ---------------------------------------------- */}
-
         <Toaster richColors position="top-right" />
       </AuthProvider>
     </ThemeProvider>
