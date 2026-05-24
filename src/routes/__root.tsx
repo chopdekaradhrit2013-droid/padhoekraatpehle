@@ -1,3 +1,4 @@
+import AiSidebar from './AiSidebar';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -77,19 +78,31 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
-  return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <AuthProvider>
-          <div className="flex min-h-screen flex-col">
+ return (
+  <QueryClientProvider client={queryClient}>
+    <ThemeProvider>
+      <AuthProvider>
+        
+        {/* --- THIS IS OUR NEW SPLIT SCREEN CONTAINER --- */}
+        <div className="app-container">
+          
+          {/* LEFT SIDE: Holds your page content and footer */}
+          <div className="document-section flex flex-col min-h-screen">
             <div className="flex-1">
               <Outlet />
             </div>
             <Footer />
           </div>
-          <Toaster richColors position="top-right" />
-        </AuthProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
-  );
+
+          {/* RIGHT SIDE: Your brand new AI Sidebar stays pinned here */}
+          <AiSidebar />
+
+        </div>
+        {/* ---------------------------------------------- */}
+
+        <Toaster richColors position="top-right" />
+      </AuthProvider>
+    </ThemeProvider>
+  </QueryClientProvider>
+);
 }
