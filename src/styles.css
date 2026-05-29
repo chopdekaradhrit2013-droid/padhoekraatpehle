@@ -139,22 +139,6 @@
   }
 
   body {
-
-  background-color: var(--color-card);
-  color: var(--color-foreground);
-}
-
-.input-area button {
-  padding: 10px 20px;
-  background-color: var(--color-primary);
-  color: var(--color-primary-foreground);
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-
-
-
     background-color: var(--color-background);
     color: var(--color-foreground);
   }
