@@ -41,8 +41,6 @@ function UserProfilePage() {
   });
 
   const handleChat = async () => {
-    // Navigate to chats page with this user
-    // You can implement a direct message feature later
     toast.success("Chat feature coming soon!");
   };
 
