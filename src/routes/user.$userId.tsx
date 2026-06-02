@@ -18,6 +18,7 @@ function UserProfilePage() {
   const navigate = useNavigate();
   const [isBlocking, setIsBlocking] = useState(false);
   const [isReporting, setIsReporting] = useState(false);
+  const [isChatLoading, setIsChatLoading] = useState(false);
 
   if (!user) {
     return (
@@ -41,10 +42,11 @@ function UserProfilePage() {
   });
 
   const handleChat = async () => {
-    // Find or create a conversation, then go to chats
+    setIsChatLoading(true);
     try {
-      // Check if conversation exists
-      const { data: existing } = await supabase
+      // Try both orderings since UNIQUE constraint is on (user1_id, user2_id)
+      // The conversation could exist as (me, them) OR (them, me)
+      const { data: existing, error: fetchError } = await supabase
         .from("conversations")
         .select("id")
         .or(
@@ -52,20 +54,35 @@ function UserProfilePage() {
         )
         .maybeSingle();
 
+      if (fetchError) throw fetchError;
+
       if (existing) {
         navigate({ to: "/chats", search: { with: userId } as any });
         return;
       }
 
-      const { error } = await supabase.from("conversations").insert({
-        user1_id: user.id,
-        user2_id: userId,
+      // Create new conversation — always put lower UUID as user1 to avoid duplicates
+      const [u1, u2] = [user.id, userId].sort();
+      const { error: insertError } = await supabase.from("conversations").insert({
+        user1_id: u1,
+        user2_id: u2,
       });
-      if (error) throw error;
+
+      if (insertError) {
+        // If unique violation (race condition), conversation was just created — fetch it
+        if (insertError.code === "23505") {
+          navigate({ to: "/chats", search: { with: userId } as any });
+          return;
+        }
+        throw insertError;
+      }
+
       navigate({ to: "/chats", search: { with: userId } as any });
-    } catch (err) {
-      console.error(err);
-      toast.error("Could not open chat");
+    } catch (err: any) {
+      console.error("handleChat error:", err);
+      toast.error("Could not open chat. Make sure you're signed in and try again.");
+    } finally {
+      setIsChatLoading(false);
     }
   };
 
@@ -151,8 +168,12 @@ function UserProfilePage() {
               <p className="text-sm text-muted-foreground italic">This is you 👋</p>
             ) : (
               <div className="flex flex-wrap justify-center gap-3 pt-2 w-full">
-                <Button onClick={handleChat} className="gap-2 flex-1">
-                  <MessageCircle className="h-4 w-4" />
+                <Button onClick={handleChat} className="gap-2 flex-1" disabled={isChatLoading}>
+                  {isChatLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <MessageCircle className="h-4 w-4" />
+                  )}
                   Chat
                 </Button>
 
