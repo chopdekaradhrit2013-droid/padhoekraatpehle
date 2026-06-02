@@ -35,6 +35,78 @@ export type Database = {
         }
         Relationships: []
       }
+      blocked_users: {
+        Row: {
+          id: string
+          blocker_id: string
+          blocked_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          blocker_id: string
+          blocked_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          blocker_id?: string
+          blocked_id?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      conversations: {
+        Row: {
+          id: string
+          user1_id: string
+          user2_id: string
+          last_message: string | null
+          last_message_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user1_id: string
+          user2_id: string
+          last_message?: string | null
+          last_message_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user1_id?: string
+          user2_id?: string
+          last_message?: string | null
+          last_message_at?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      messages: {
+        Row: {
+          id: string
+          conversation_id: string
+          sender_id: string
+          content: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          conversation_id: string
+          sender_id: string
+          content: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          conversation_id?: string
+          sender_id?: string
+          content?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       notes: {
         Row: {
           created_at: string
@@ -92,6 +164,30 @@ export type Database = {
           name?: string
           phone?: string | null
           username?: string
+        }
+        Relationships: []
+      }
+      reports: {
+        Row: {
+          id: string
+          reporter_id: string
+          reported_id: string
+          reason: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          reporter_id: string
+          reported_id: string
+          reason?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          reporter_id?: string
+          reported_id?: string
+          reason?: string | null
+          created_at?: string
         }
         Relationships: []
       }
