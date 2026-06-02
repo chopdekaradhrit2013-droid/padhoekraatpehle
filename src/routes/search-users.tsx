@@ -1,12 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/auth-context";
-import { useNavigate } from "@tanstack/react-router";
-import { Search as SearchIcon, Loader2 } from "lucide-react";
+import { Header } from "@/components/Header";
+import { Search as SearchIcon, Loader2, User } from "lucide-react";
 
 export const Route = createFileRoute("/search-users")({
   component: SearchUsersPage,
@@ -16,109 +15,101 @@ function SearchUsersPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
+  const [allUsers, setAllUsers] = useState<any[]>([]);
   const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load all users on mount
+  useEffect(() => {
+    if (!user) return;
+    const fetchAll = async () => {
+      setIsLoading(true);
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, username, name")
+        .neq("id", user.id)
+        .order("username");
+      setAllUsers(data || []);
+      setSearchResults(data || []);
+      setIsLoading(false);
+    };
+    fetchAll();
+  }, [user]);
+
+  // Filter locally as user types
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults(allUsers);
+      return;
+    }
+    const q = searchQuery.toLowerCase();
+    setSearchResults(
+      allUsers.filter(
+        (p) =>
+          p.username?.toLowerCase().includes(q) ||
+          p.name?.toLowerCase().includes(q)
+      )
+    );
+  }, [searchQuery, allUsers]);
 
   if (!user) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <p className="text-muted-foreground">Please sign in to search for users.</p>
+        <p className="text-muted-foreground">Please sign in to search users.</p>
       </div>
     );
   }
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) return;
-
-    setIsSearching(true);
-    try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, username, email, avatar_url")
-        .ilike("username", `%${searchQuery}%`)
-        .neq("id", user.id)
-        .limit(20);
-
-      if (error) throw error;
-      setSearchResults(data || []);
-    } catch (error) {
-      console.error("Search error:", error);
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-background">
+      <Header />
       <div className="mx-auto max-w-2xl px-4 py-8">
-        <h1 className="mb-6 text-3xl font-bold text-foreground">Search Users</h1>
+        <h1 className="mb-6 text-2xl font-bold text-foreground">Find People</h1>
 
-        <form onSubmit={handleSearch} className="mb-8 flex gap-2">
+        {/* Search bar */}
+        <div className="relative mb-6">
+          <SearchIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="text"
-            placeholder="Search by username..."
+            placeholder="Search by username or name..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-1"
+            className="pl-10"
           />
-          <Button type="submit" disabled={isSearching}>
-            {isSearching ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Searching...
-              </>
-            ) : (
-              <>
-                <SearchIcon className="mr-2 h-4 w-4" />
-                Search
-              </>
-            )}
-          </Button>
-        </form>
+        </div>
 
-        {searchResults.length > 0 && (
-          <div className="grid gap-4">
+        {/* Results */}
+        {isLoading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div>
+        ) : searchResults.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-12 text-center">
+            <User className="h-10 w-10 text-muted-foreground/40" />
+            <p className="text-muted-foreground">
+              {searchQuery ? `No users found for "${searchQuery}"` : "No other users yet."}
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
             {searchResults.map((profile) => (
-              <div
+              <button
                 key={profile.id}
-                className="flex items-center justify-between rounded-lg border border-border bg-card p-4"
+                onClick={() => navigate({ to: `/user/${profile.id}` })}
+                className="flex items-center gap-4 rounded-xl border border-border bg-card px-4 py-3 text-left transition hover:bg-accent"
               >
-                <div className="flex items-center gap-3">
-                  {profile.avatar_url && (
-                    <img
-                      src={profile.avatar_url}
-                      alt={profile.username}
-                      className="h-10 w-10 rounded-full object-cover"
-                    />
-                  )}
-                  <div>
-                    <p className="font-medium text-foreground">{profile.username}</p>
-                    <p className="text-sm text-muted-foreground">{profile.email}</p>
-                  </div>
+                {/* Avatar initial */}
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-bold">
+                  {profile.username?.[0]?.toUpperCase() ?? "?"}
                 </div>
-                <Button
-                  onClick={() => navigate({ to: `/user/${profile.id}` })}
-                  variant="default"
-                  size="sm"
-                >
-                  View Profile
-                </Button>
-              </div>
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-foreground">{profile.username}</p>
+                  {profile.name && profile.name !== profile.username && (
+                    <p className="truncate text-sm text-muted-foreground">{profile.name}</p>
+                  )}
+                </div>
+              </button>
             ))}
-          </div>
-        )}
-
-        {searchQuery && searchResults.length === 0 && !isSearching && (
-          <div className="text-center">
-            <p className="text-muted-foreground">No users found matching "{searchQuery}"</p>
-          </div>
-        )}
-
-        {!searchQuery && searchResults.length === 0 && (
-          <div className="text-center">
-            <p className="text-muted-foreground">Enter a username to search</p>
           </div>
         )}
       </div>
