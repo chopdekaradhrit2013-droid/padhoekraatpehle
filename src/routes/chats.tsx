@@ -69,10 +69,15 @@ function ChatsPage() {
       }));
       setConversations(convs);
 
-      // Auto-open if navigated with ?with=userId
+      // Auto-open if navigated with ?with=userId — use convs directly (not stale state)
       if (search.with) {
-        const target = convs.find((c) => c.other.id === search.with);
-        if (target) openConversation(target);
+        const target = convs.find((c) => c.other?.id === search.with);
+        if (target) {
+          setActiveConvId(target.id);
+          setActiveOther(target.other);
+          loadMessages(target.id);
+          setTimeout(() => inputRef.current?.focus(), 100);
+        }
       }
     }
     setLoadingConvs(false);
@@ -110,7 +115,11 @@ function ChatsPage() {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${activeConvId}` },
         (payload) => {
-          setMessages((prev) => [...prev, payload.new as Message]);
+          setMessages((prev) => {
+            // Avoid duplicates from optimistic updates
+            if (prev.find((m) => m.id === (payload.new as Message).id)) return prev;
+            return [...prev, payload.new as Message];
+          });
           setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
         }
       )
@@ -124,17 +133,26 @@ function ChatsPage() {
     const content = newMsg.trim();
     setNewMsg("");
 
-    await supabase.from("messages").insert({
+    const { error } = await supabase.from("messages").insert({
       conversation_id: activeConvId,
       sender_id: user.id,
       content,
     });
 
-    // Update last_message on conversation
-    await supabase
-      .from("conversations")
-      .update({ last_message: content, last_message_at: new Date().toISOString() })
-      .eq("id", activeConvId);
+    if (!error) {
+      // Update last_message on conversation
+      await supabase
+        .from("conversations")
+        .update({ last_message: content, last_message_at: new Date().toISOString() })
+        .eq("id", activeConvId);
+
+      // Update local conversation list preview
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === activeConvId ? { ...c, last_message: content, last_at: new Date().toISOString() } : c
+        )
+      );
+    }
 
     setSending(false);
   };
@@ -212,11 +230,11 @@ function ChatsPage() {
                   )}
                 >
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground font-bold">
-                    {conv.other.username?.[0]?.toUpperCase() ?? "?"}
+                    {conv.other?.username?.[0]?.toUpperCase() ?? "?"}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between">
-                      <p className="truncate font-medium text-foreground">{conv.other.username}</p>
+                      <p className="truncate font-medium text-foreground">{conv.other?.username}</p>
                       {conv.last_at && (
                         <span className="shrink-0 text-xs text-muted-foreground ml-2">
                           {formatDate(conv.last_at)}
