@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Upload as UploadIcon } from "lucide-react";
@@ -18,6 +19,8 @@ function UploadPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [classLevel, setClassLevel] = useState("");
+  const [subject, setSubject] = useState("");
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => { if (!loading && !user) navigate({ to: "/login" }); }, [user, loading, navigate]);
@@ -25,6 +28,7 @@ function UploadPage() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !file) return toast.error("Please select a file");
+    if (!classLevel || !subject) return toast.error("Please select Class and Subject");
     if (file.size > 25 * 1024 * 1024) return toast.error("File too large (max 25 MB)");
     setUploading(true);
     const ext = file.name.split(".").pop() ?? "bin";
@@ -40,6 +44,8 @@ function UploadPage() {
       file_path: path,
       file_type: file.type || null,
       file_name: file.name,
+      class_level: classLevel,
+      subject: subject,
     });
     setUploading(false);
     if (insErr) return toast.error(insErr.message);
@@ -71,6 +77,36 @@ function UploadPage() {
               <Label htmlFor="desc">Description (optional)</Label>
               <Textarea id="desc" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} maxLength={500} />
             </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Class</Label>
+                <Select value={classLevel} onValueChange={setClassLevel} required>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Class" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[6,7,8,9,10].map(c => (
+                      <SelectItem key={c} value={`Class ${c}`}>Class {c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Subject</Label>
+                <Select value={subject} onValueChange={setSubject} required>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Subject" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {["Hindi", "Marathi", "English Language", "English Literature", "Maths", "Computers", "History", "Geography", "Physics", "Chemistry", "Biology"].map(s => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             <div>
               <Label htmlFor="file">File</Label>
               <Input id="file" type="file" required onChange={(e) => setFile(e.target.files?.[0] ?? null)}
