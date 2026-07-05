@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Header } from "@/components/Header";
@@ -28,6 +29,8 @@ type NoteRow = {
   file_type: string | null;
   file_name: string | null;
   created_at: string;
+  class_level?: string;
+  subject?: string;
 };
 
 type NoteWithUser = NoteRow & { username: string; uploader_name: string };
@@ -173,6 +176,8 @@ function NotesPage() {
                         <ShieldAlert className="h-2.5 w-2.5" /> banned
                       </Badge>
                     )}
+                    {note.class_level && <Badge variant="secondary">{note.class_level}</Badge>}
+                    {note.subject && <Badge variant="outline">{note.subject}</Badge>}
                   </div>
                   <div className="flex aspect-video items-center justify-center bg-muted/30">
                     {isImage ? (
@@ -223,15 +228,18 @@ function UploadDialog({ onDone, userId }: { onDone: () => void; userId: string }
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [classLevel, setClassLevel] = useState("");
+  const [subject, setSubject] = useState("");
   const [uploading, setUploading] = useState(false);
 
   const reset = () => {
-    setTitle(""); setDescription(""); setFile(null);
+    setTitle(""); setDescription(""); setFile(null); setClassLevel(""); setSubject("");
   };
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!file) return toast.error("Please select a file");
+    if (!classLevel || !subject) return toast.error("Please select Class and Subject");
     if (file.size > 25 * 1024 * 1024) return toast.error("File too large (max 25 MB)");
 
     setUploading(true);
@@ -249,6 +257,8 @@ function UploadDialog({ onDone, userId }: { onDone: () => void; userId: string }
       file_path: path,
       file_type: file.type || null,
       file_name: file.name,
+      class_level: classLevel,
+      subject: subject,
     });
     setUploading(false);
     if (insErr) return toast.error(insErr.message);
@@ -265,7 +275,7 @@ function UploadDialog({ onDone, userId }: { onDone: () => void; userId: string }
           <Upload className="mr-2 h-4 w-4" /> Upload note
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Upload a new note</DialogTitle>
         </DialogHeader>
@@ -278,6 +288,36 @@ function UploadDialog({ onDone, userId }: { onDone: () => void; userId: string }
             <Label htmlFor="desc">Description (optional)</Label>
             <Textarea id="desc" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} maxLength={500} />
           </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Class</Label>
+              <Select value={classLevel} onValueChange={setClassLevel} required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Class" />
+                </SelectTrigger>
+                <SelectContent>
+                  {[6,7,8,9,10].map(c => (
+                    <SelectItem key={c} value={`Class ${c}`}>Class {c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Subject</Label>
+              <Select value={subject} onValueChange={setSubject} required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Subject" />
+                </SelectTrigger>
+                <SelectContent>
+                  {["Hindi", "Marathi", "English Language", "English Literature", "Maths", "Computers", "History", "Geography", "Physics", "Chemistry", "Biology"].map(s => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           <div>
             <Label htmlFor="file">File (PDF, image, doc — up to 25 MB)</Label>
             <Input
