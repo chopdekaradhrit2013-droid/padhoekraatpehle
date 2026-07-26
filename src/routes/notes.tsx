@@ -7,14 +7,19 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Header } from "@/components/Header";
 import { toast } from "sonner";
 import {
-  Upload, FileText, ImageIcon, Trash2, Download, ShieldAlert, ShieldCheck, Ban,
-  Search, X, Filter, ExternalLink,
+  Upload, FileText, ImageIcon, Trash2, ShieldAlert, ShieldCheck, Ban,
+  Search, X, Filter, ExternalLink, Loader2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Announcements } from "@/components/Announcements";
@@ -45,7 +50,6 @@ type NoteRow = {
 type NoteWithUser = NoteRow & { username: string; uploader_name: string };
 type NoteWithUserExt = NoteWithUser & { is_admin: boolean; banned: boolean };
 
-/** Loads a short-lived signed URL and shows a real image thumbnail (falls back to icon). */
 function NoteThumbnail({ note }: { note: NoteWithUser }) {
   const isImage = note.file_type?.startsWith("image/");
   const [url, setUrl] = useState<string | null>(null);
@@ -101,6 +105,8 @@ function NotesPage() {
   const [notes, setNotes] = useState<NoteWithUserExt[]>([]);
   const [fetching, setFetching] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingAll, setDeletingAll] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [classFilter, setClassFilter] = useState<string>("all");
@@ -185,12 +191,41 @@ function NotesPage() {
   };
 
   const handleDelete = async (note: NoteWithUserExt) => {
-    if (!confirm("Delete this note?")) return;
-    await supabase.storage.from("notes").remove([note.file_path]);
-    const { error } = await supabase.from("notes").delete().eq("id", note.id);
-    if (error) return toast.error(error.message);
-    toast.success("Deleted");
-    fetchNotes();
+    setDeletingId(note.id);
+    try {
+      await supabase.storage.from("notes").remove([note.file_path]);
+      const { error } = await supabase.from("notes").delete().eq("id", note.id);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      toast.success("Note deleted");
+      setNotes((prev) => prev.filter((n) => n.id !== note.id));
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    if (!isAdmin || notes.length === 0) return;
+    setDeletingAll(true);
+    try {
+      const paths = notes.map((n) => n.file_path).filter(Boolean);
+      // Storage remove accepts batches; chunk if needed
+      for (let i = 0; i < paths.length; i += 50) {
+        const chunk = paths.slice(i, i + 50);
+        await supabase.storage.from("notes").remove(chunk);
+      }
+      const { error } = await supabase.from("notes").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      toast.success(`Deleted all ${notes.length} notes`);
+      setNotes([]);
+    } finally {
+      setDeletingAll(false);
+    }
   };
 
   const handleBan = async (note: NoteWithUserExt) => {
@@ -228,7 +263,41 @@ function NotesPage() {
               Everything your squad has uploaded. Click any note to open its page.
             </p>
           </div>
-          <UploadDialog onDone={fetchNotes} userId={user.id} />
+          <div className="flex flex-wrap items-center gap-2">
+            {isAdmin && notes.length > 0 && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" size="sm" disabled={deletingAll}>
+                    {deletingAll ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="mr-2 h-4 w-4" />
+                    )}
+                    Delete all notes
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete all notes?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete all {notes.length} notes and their files from storage.
+                      This cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDeleteAll}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Yes, delete everything
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+            <UploadDialog onDone={fetchNotes} userId={user.id} />
+          </div>
         </div>
 
         <Announcements userId={user.id} isAdmin={isAdmin} />
@@ -330,6 +399,7 @@ function NotesPage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {filteredNotes.map((note) => {
               const canDelete = note.user_id === user.id || isAdmin;
+              const isDeleting = deletingId === note.id;
               return (
                 <article
                   key={note.id}
@@ -369,9 +439,41 @@ function NotesPage() {
                         </Link>
                       </Button>
                       {canDelete && (
-                        <Button size="sm" variant="outline" onClick={() => handleDelete(note)} title="Delete note">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-destructive/40 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                              disabled={isDeleting}
+                              title="Delete note"
+                            >
+                              {isDeleting ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3.5 w-3.5" />
+                              )}
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete this note?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                “{note.title}” will be permanently removed, including the file.
+                                This cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDelete(note)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       )}
                       {isAdmin && note.user_id !== user.id && (
                         <Button

@@ -5,6 +5,11 @@ import { useAuth } from "@/lib/auth-context";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import {
   ArrowLeft, Download, ExternalLink, FileText, ImageIcon,
@@ -40,6 +45,7 @@ function NoteDetailPage() {
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) navigate({ to: "/login" });
@@ -85,7 +91,6 @@ function NoteDetailPage() {
         uploader_name: prof?.name ?? "Unknown",
       });
 
-      // Signed URL for preview / download (1 hour)
       const { data: signed } = await supabase.storage
         .from("notes")
         .createSignedUrl(n.file_path, 60 * 60);
@@ -114,12 +119,20 @@ function NoteDetailPage() {
   };
 
   const handleDelete = async () => {
-    if (!note || !confirm("Delete this note?")) return;
-    await supabase.storage.from("notes").remove([note.file_path]);
-    const { error } = await supabase.from("notes").delete().eq("id", note.id);
-    if (error) return toast.error(error.message);
-    toast.success("Deleted");
-    navigate({ to: "/notes" });
+    if (!note) return;
+    setDeleting(true);
+    try {
+      await supabase.storage.from("notes").remove([note.file_path]);
+      const { error } = await supabase.from("notes").delete().eq("id", note.id);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      toast.success("Note deleted");
+      navigate({ to: "/notes" });
+    } finally {
+      setDeleting(false);
+    }
   };
 
   if (authLoading || !user || loading) {
@@ -162,7 +175,6 @@ function NoteDetailPage() {
         </Button>
 
         <article className="rounded-2xl border border-border bg-card overflow-hidden">
-          {/* Meta header */}
           <div className="border-b border-border bg-muted/40 px-5 py-3 flex flex-wrap items-center gap-2 text-sm">
             <span className="text-muted-foreground">Uploaded by</span>
             <span className="font-semibold">@{note.username}</span>
@@ -184,7 +196,6 @@ function NoteDetailPage() {
               )}
             </div>
 
-            {/* Shareable link (repo-style) */}
             <div className="rounded-xl border border-border bg-muted/30 p-3 flex flex-wrap items-center gap-2">
               <code className="flex-1 min-w-0 truncate text-sm font-mono text-foreground">
                 {shareUrl.replace(/^https?:\/\//, "")}
@@ -195,7 +206,6 @@ function NoteDetailPage() {
               </Button>
             </div>
 
-            {/* Preview */}
             <div className="rounded-xl border border-border overflow-hidden bg-muted/20">
               {fileUrl && isImage ? (
                 <img
@@ -221,7 +231,6 @@ function NoteDetailPage() {
               )}
             </div>
 
-            {/* Actions */}
             <div className="flex flex-wrap gap-2 pt-2">
               {fileUrl && (
                 <>
@@ -238,9 +247,36 @@ function NoteDetailPage() {
                 </>
               )}
               {canDelete && (
-                <Button variant="destructive" onClick={handleDelete}>
-                  <Trash2 className="mr-2 h-4 w-4" /> Delete
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" disabled={deleting}>
+                      {deleting ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="mr-2 h-4 w-4" />
+                      )}
+                      Delete note
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete this note?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        “{note.title}” will be permanently removed, including the file.
+                        This cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleDelete}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Delete permanently
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               )}
             </div>
           </div>
