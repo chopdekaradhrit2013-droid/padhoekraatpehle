@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,7 @@ import { Header } from "@/components/Header";
 import { toast } from "sonner";
 import {
   Upload, FileText, ImageIcon, Trash2, Download, ShieldAlert, ShieldCheck, Ban,
-  Search, X, Filter,
+  Search, X, Filter, ExternalLink,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Announcements } from "@/components/Announcements";
@@ -56,7 +56,7 @@ function NoteThumbnail({ note }: { note: NoteWithUser }) {
     let cancelled = false;
     supabase.storage
       .from("notes")
-      .createSignedUrl(note.file_path, 60 * 30) // 30 min
+      .createSignedUrl(note.file_path, 60 * 30)
       .then(({ data, error }) => {
         if (cancelled) return;
         if (error || !data?.signedUrl) {
@@ -102,7 +102,6 @@ function NotesPage() {
   const [fetching, setFetching] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // Filters
   const [searchQuery, setSearchQuery] = useState("");
   const [classFilter, setClassFilter] = useState<string>("all");
   const [subjectFilter, setSubjectFilter] = useState<string>("all");
@@ -185,14 +184,6 @@ function NotesPage() {
     setMyNotesOnly(false);
   };
 
-  const handleDownload = async (note: NoteWithUser) => {
-    const { data, error } = await supabase.storage
-      .from("notes")
-      .createSignedUrl(note.file_path, 60 * 10);
-    if (error || !data) return toast.error("Could not open file");
-    window.open(data.signedUrl, "_blank");
-  };
-
   const handleDelete = async (note: NoteWithUserExt) => {
     if (!confirm("Delete this note?")) return;
     await supabase.storage.from("notes").remove([note.file_path]);
@@ -234,7 +225,7 @@ function NotesPage() {
               {isAdmin && <Badge variant="destructive" className="text-xs">ADMIN</Badge>}
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Everything your squad has uploaded. Click any note to view or download.
+              Everything your squad has uploaded. Click any note to open its page.
             </p>
           </div>
           <UploadDialog onDone={fetchNotes} userId={user.id} />
@@ -242,7 +233,6 @@ function NotesPage() {
 
         <Announcements userId={user.id} isAdmin={isAdmin} />
 
-        {/* Filters */}
         <div className="mb-6 space-y-3 rounded-2xl border border-border bg-card p-4">
           <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
             <Filter className="h-4 w-4" />
@@ -341,7 +331,10 @@ function NotesPage() {
             {filteredNotes.map((note) => {
               const canDelete = note.user_id === user.id || isAdmin;
               return (
-                <article key={note.id} className="overflow-hidden rounded-2xl border border-border bg-card transition hover:shadow-md">
+                <article
+                  key={note.id}
+                  className="overflow-hidden rounded-2xl border border-border bg-card transition hover:shadow-md"
+                >
                   <div className="border-b border-border bg-muted/40 px-4 py-2 text-xs flex items-center gap-2 flex-wrap">
                     <span className="text-muted-foreground">Uploaded by</span>
                     <span className="font-semibold text-foreground">@{note.username}</span>
@@ -358,16 +351,22 @@ function NotesPage() {
                     {note.class_level && <Badge variant="secondary">{note.class_level}</Badge>}
                     {note.subject && <Badge variant="outline">{note.subject}</Badge>}
                   </div>
-                  <NoteThumbnail note={note} />
+                  <Link to="/note/$noteId" params={{ noteId: note.id }} className="block">
+                    <NoteThumbnail note={note} />
+                  </Link>
                   <div className="p-4">
-                    <h3 className="font-semibold leading-tight">{note.title}</h3>
+                    <Link to="/note/$noteId" params={{ noteId: note.id }}>
+                      <h3 className="font-semibold leading-tight hover:underline">{note.title}</h3>
+                    </Link>
                     {note.description && (
                       <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{note.description}</p>
                     )}
                     <p className="mt-2 text-xs text-muted-foreground truncate">{note.file_name}</p>
                     <div className="mt-4 flex gap-2">
-                      <Button size="sm" variant="default" className="flex-1" onClick={() => handleDownload(note)}>
-                        <Download className="mr-1 h-3.5 w-3.5" /> Open
+                      <Button asChild size="sm" variant="default" className="flex-1">
+                        <Link to="/note/$noteId" params={{ noteId: note.id }}>
+                          <ExternalLink className="mr-1 h-3.5 w-3.5" /> Open
+                        </Link>
                       </Button>
                       {canDelete && (
                         <Button size="sm" variant="outline" onClick={() => handleDelete(note)} title="Delete note">
