@@ -45,6 +45,56 @@ type NoteRow = {
 type NoteWithUser = NoteRow & { username: string; uploader_name: string };
 type NoteWithUserExt = NoteWithUser & { is_admin: boolean; banned: boolean };
 
+/** Loads a short-lived signed URL and shows a real image thumbnail (falls back to icon). */
+function NoteThumbnail({ note }: { note: NoteWithUser }) {
+  const isImage = note.file_type?.startsWith("image/");
+  const [url, setUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!isImage) return;
+    let cancelled = false;
+    supabase.storage
+      .from("notes")
+      .createSignedUrl(note.file_path, 60 * 30) // 30 min
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error || !data?.signedUrl) {
+          setFailed(true);
+          return;
+        }
+        setUrl(data.signedUrl);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [note.file_path, isImage]);
+
+  if (!isImage || failed || !url) {
+    return (
+      <div className="flex aspect-video items-center justify-center bg-muted/30">
+        {isImage ? (
+          <ImageIcon className="h-10 w-10 text-muted-foreground" />
+        ) : (
+          <FileText className="h-10 w-10 text-muted-foreground" />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="aspect-video overflow-hidden bg-muted/30">
+      <img
+        src={url}
+        alt={note.title}
+        className="h-full w-full object-cover"
+        loading="lazy"
+        onError={() => setFailed(true)}
+      />
+    </div>
+  );
+}
+
 function NotesPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
@@ -289,7 +339,6 @@ function NotesPage() {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {filteredNotes.map((note) => {
-              const isImage = note.file_type?.startsWith("image/");
               const canDelete = note.user_id === user.id || isAdmin;
               return (
                 <article key={note.id} className="overflow-hidden rounded-2xl border border-border bg-card transition hover:shadow-md">
@@ -309,13 +358,7 @@ function NotesPage() {
                     {note.class_level && <Badge variant="secondary">{note.class_level}</Badge>}
                     {note.subject && <Badge variant="outline">{note.subject}</Badge>}
                   </div>
-                  <div className="flex aspect-video items-center justify-center bg-muted/30">
-                    {isImage ? (
-                      <ImageIcon className="h-10 w-10 text-muted-foreground" />
-                    ) : (
-                      <FileText className="h-10 w-10 text-muted-foreground" />
-                    )}
-                  </div>
+                  <NoteThumbnail note={note} />
                   <div className="p-4">
                     <h3 className="font-semibold leading-tight">{note.title}</h3>
                     {note.description && (
