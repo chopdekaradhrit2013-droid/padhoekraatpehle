@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,13 +12,22 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Header } from "@/components/Header";
 import { toast } from "sonner";
-import { Upload, FileText, ImageIcon, Trash2, Download, ShieldAlert, ShieldCheck, Ban } from "lucide-react";
+import {
+  Upload, FileText, ImageIcon, Trash2, Download, ShieldAlert, ShieldCheck, Ban,
+  Search, X, Filter,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Announcements } from "@/components/Announcements";
 
 export const Route = createFileRoute("/notes")({
   component: NotesPage,
 });
+
+const CLASSES = ["Class 6", "Class 7", "Class 8", "Class 9", "Class 10"] as const;
+const SUBJECTS = [
+  "Hindi", "Marathi", "English Language", "English Literature",
+  "Maths", "Computers", "History", "Geography", "Physics", "Chemistry", "Biology",
+] as const;
 
 type NoteRow = {
   id: string;
@@ -42,6 +51,12 @@ function NotesPage() {
   const [notes, setNotes] = useState<NoteWithUserExt[]>([]);
   const [fetching, setFetching] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+
+  // Filters
+  const [searchQuery, setSearchQuery] = useState("");
+  const [classFilter, setClassFilter] = useState<string>("all");
+  const [subjectFilter, setSubjectFilter] = useState<string>("all");
+  const [myNotesOnly, setMyNotesOnly] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/login" });
@@ -92,6 +107,33 @@ function NotesPage() {
   useEffect(() => {
     if (user) fetchNotes();
   }, [user]);
+
+  const filteredNotes = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return notes.filter((note) => {
+      if (myNotesOnly && note.user_id !== user?.id) return false;
+      if (classFilter !== "all" && note.class_level !== classFilter) return false;
+      if (subjectFilter !== "all" && note.subject !== subjectFilter) return false;
+      if (q) {
+        const haystack = `${note.title} ${note.description ?? ""} ${note.file_name ?? ""} ${note.username}`.toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [notes, searchQuery, classFilter, subjectFilter, myNotesOnly, user?.id]);
+
+  const hasActiveFilters =
+    searchQuery.trim() !== "" ||
+    classFilter !== "all" ||
+    subjectFilter !== "all" ||
+    myNotesOnly;
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setClassFilter("all");
+    setSubjectFilter("all");
+    setMyNotesOnly(false);
+  };
 
   const handleDownload = async (note: NoteWithUser) => {
     const { data, error } = await supabase.storage
@@ -150,15 +192,103 @@ function NotesPage() {
 
         <Announcements userId={user.id} isAdmin={isAdmin} />
 
+        {/* Filters */}
+        <div className="mb-6 space-y-3 rounded-2xl border border-border bg-card p-4">
+          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <Filter className="h-4 w-4" />
+            Filter notes
+          </div>
+
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by title, description, file name or uploader..."
+              className="pl-9"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                aria-label="Clear search"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="w-full sm:w-40">
+              <Select value={classFilter} onValueChange={setClassFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Class" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Classes</SelectItem>
+                  {CLASSES.map((c) => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="w-full sm:w-48">
+              <Select value={subjectFilter} onValueChange={setSubjectFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Subject" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Subjects</SelectItem>
+                  {SUBJECTS.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button
+              type="button"
+              variant={myNotesOnly ? "default" : "outline"}
+              size="sm"
+              onClick={() => setMyNotesOnly((v) => !v)}
+              className="whitespace-nowrap"
+            >
+              My notes only
+            </Button>
+
+            {hasActiveFilters && (
+              <Button type="button" variant="ghost" size="sm" onClick={clearFilters} className="gap-1">
+                <X className="h-3.5 w-3.5" /> Clear filters
+              </Button>
+            )}
+          </div>
+
+          {!fetching && notes.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Showing {filteredNotes.length} of {notes.length} notes
+              {hasActiveFilters && " (filtered)"}
+            </p>
+          )}
+        </div>
+
         {fetching ? (
           <div className="py-16 text-center text-muted-foreground">Loading notes...</div>
         ) : notes.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border p-16 text-center">
             <p className="text-muted-foreground">No notes yet. Be the first to upload!</p>
           </div>
+        ) : filteredNotes.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border p-16 text-center">
+            <p className="text-muted-foreground">No notes match your filters.</p>
+            <Button variant="outline" size="sm" className="mt-4" onClick={clearFilters}>
+              Clear filters
+            </Button>
+          </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {notes.map((note) => {
+            {filteredNotes.map((note) => {
               const isImage = note.file_type?.startsWith("image/");
               const canDelete = note.user_id === user.id || isAdmin;
               return (
@@ -297,8 +427,8 @@ function UploadDialog({ onDone, userId }: { onDone: () => void; userId: string }
                   <SelectValue placeholder="Select Class" />
                 </SelectTrigger>
                 <SelectContent>
-                  {[6,7,8,9,10].map(c => (
-                    <SelectItem key={c} value={`Class ${c}`}>Class {c}</SelectItem>
+                  {CLASSES.map((c) => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -310,7 +440,7 @@ function UploadDialog({ onDone, userId }: { onDone: () => void; userId: string }
                   <SelectValue placeholder="Select Subject" />
                 </SelectTrigger>
                 <SelectContent>
-                  {["Hindi", "Marathi", "English Language", "English Literature", "Maths", "Computers", "History", "Geography", "Physics", "Chemistry", "Biology"].map(s => (
+                  {SUBJECTS.map((s) => (
                     <SelectItem key={s} value={s}>{s}</SelectItem>
                   ))}
                 </SelectContent>
