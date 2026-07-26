@@ -1,5 +1,5 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { Moon, Sun, LogOut, BookOpen, Home, User as UserIcon, ShieldCheck, Upload as UploadIcon, Menu, X, Search, MessageCircle } from "lucide-react";
+import { Moon, Sun, LogOut, BookOpen, Home, User as UserIcon, ShieldCheck, Menu, X, Search, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/lib/theme";
 import { useAuth } from "@/lib/auth-context";
@@ -10,7 +10,6 @@ import { useState, useRef, useEffect } from "react";
 const tabs = [
   { to: "/notes", label: "Home", icon: Home },
   { to: "/profile", label: "Profile", icon: UserIcon },
-  { to: "/upload", label: "Upload", icon: UploadIcon },
   { to: "/about-admin", label: "About Admin", icon: ShieldCheck },
 ] as const;
 
