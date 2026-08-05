@@ -43,8 +43,8 @@ type NoteRow = {
   file_type: string | null;
   file_name: string | null;
   created_at: string;
-  class_level?: string;
-  subject?: string;
+  class_level?: string | null;
+  subject?: string | null;
 };
 
 type NoteWithUser = NoteRow & { username: string; uploader_name: string };
@@ -107,6 +107,7 @@ function NotesPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deletingAll, setDeletingAll] = useState(false);
+  const [banChecked, setBanChecked] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [classFilter, setClassFilter] = useState<string>("all");
@@ -116,6 +117,30 @@ function NotesPage() {
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/login" });
   }, [user, loading, navigate]);
+
+  // Enforce bans: banned users are signed out and sent to login
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("banned")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (cancelled) return;
+      if (data?.banned) {
+        toast.error("Your account has been banned. Contact the admin if you think this is a mistake.");
+        await supabase.auth.signOut();
+        navigate({ to: "/login" });
+        return;
+      }
+      setBanChecked(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, navigate]);
 
   useEffect(() => {
     if (!user) return;
@@ -160,8 +185,8 @@ function NotesPage() {
   };
 
   useEffect(() => {
-    if (user) fetchNotes();
-  }, [user]);
+    if (user && banChecked) fetchNotes();
+  }, [user, banChecked]);
 
   const filteredNotes = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -211,7 +236,6 @@ function NotesPage() {
     setDeletingAll(true);
     try {
       const paths = notes.map((n) => n.file_path).filter(Boolean);
-      // Storage remove accepts batches; chunk if needed
       for (let i = 0; i < paths.length; i += 50) {
         const chunk = paths.slice(i, i + 50);
         await supabase.storage.from("notes").remove(chunk);
@@ -240,7 +264,7 @@ function NotesPage() {
     fetchNotes();
   };
 
-  if (loading || !user) {
+  if (loading || !user || !banChecked) {
     return (
       <div className="min-h-screen bg-background">
         <Header />
